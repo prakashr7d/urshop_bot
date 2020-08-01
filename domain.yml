@@ -1,0 +1,126 @@
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: true
+intents:
+- quantity
+- ask_affirm
+- item_selection
+- greet
+- main_category_selection
+- address_collection
+- shop_selection
+- quantity_selection
+- menu_selection
+- Name_collecting
+- email_collection
+- pin_code
+- good_bye
+- name_collection
+- addresss_collection
+- shop_selction
+entities:
+- affirm
+- email
+- item
+- main_category
+- menu
+- pincode
+- price_list
+- quantity
+- quantity_stored
+- quantity_type
+- shop
+- total_price
+slots:
+  address:
+    type: text
+  affirm:
+    type: unfeaturized
+  city:
+    type: unfeaturized
+  client_type:
+    type: unfeaturized
+  disp_items:
+    type: text
+  email:
+    type: unfeaturized
+  item:
+    type: unfeaturized
+  items_stored:
+    type: unfeaturized
+  main_category:
+    type: unfeaturized
+  menu:
+    type: categorical
+    values:
+    - place_order
+    - view_past_order
+    - support
+    - __other__
+  name:
+    type: unfeaturized
+  pincode:
+    type: unfeaturized
+  price_list:
+    type: unfeaturized
+  quantity:
+    type: unfeaturized
+  quantity_stored:
+    type: unfeaturized
+  quantity_type:
+    type: unfeaturized
+  requested_slot:
+    type: unfeaturized
+  shop:
+    type: unfeaturized
+  status:
+    type: unfeaturized
+  total_price:
+    type: unfeaturized
+responses:
+  utter_ask_address:
+  - text: enter your present address
+  utter_ask_email:
+  - text: enter your email id in the correct format
+  utter_ask_name:
+  - text: enter your name
+  utter_ask_number:
+  - text: Enter the number of quantity needed
+  utter_ask_pincode:
+  - text: enter your current pincode
+  utter_display:
+  - text: '{items_stored}'
+  utter_display_items:
+  - image: '{disp_items}'
+    text: start your shopping
+  utter_good_bye:
+  - text: good bye buddy
+  utter_greet:
+  - text: Hey! How are you?
+  utter_show_price:
+  - text: Total price is {total_price} type yes to confirm your delivery
+  utter_submit:
+  - text: " {pincode}\n {name}\n {address}\n {email}"
+actions:
+- action_affirm_yes
+- action_display_category
+- action_display_items
+- action_display_stores
+- action_get_items
+- action_get_quantity
+- action_validate_pincode
+- action_set_name
+- action_set_address
+- utter_ask_address
+- utter_ask_email
+- utter_ask_name
+- utter_ask_number
+- utter_ask_pincode
+- utter_display
+- utter_display_items
+- utter_good_bye
+- utter_greet
+- utter_show_price
+- utter_submit
+forms:
+- user_form

@@ -1,0 +1,13 @@
+import mysql.connector
+
+mydb = mysql.connector.connect(
+  host="localhost",
+  user="root",
+  password="",
+  database="urshop"
+)
+
+mycursor = mydb.cursor()
+
+
+print(mycursor.execute("SELECT * FROM clients"))
