@@ -3,8 +3,9 @@ from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.events import SlotSet
 from rasa_sdk.forms import FormAction
-from userside import validate_pincode, get_shops, convert_category_name, client_type, user_update, get_items, set_items_and_return_quantity,get_quantity
+from userside import validate_pincode, get_shops, get_category, user_update, get_items, set_items_and_return_quantity,get_quantity
 from rasa_sdk.events import AllSlotsReset
+
 # TODO: to make the fuzzy wizzy in items selected and make it right
 class UserForm(FormAction):
 
@@ -40,7 +41,7 @@ class ActionGetName(FormAction):
 
         return [SlotSet("name",name)]
 
-class ActionGetAddress(FormAction):
+class ActionGetName(FormAction):
     
     def name(self) -> Text:
         return "action_set_address"
@@ -72,11 +73,11 @@ class ActionValidationpincode(Action):
             name = tracker.get_slot('name')
             pincode = tracker.get_slot('pincode')
             email = tracker.get_slot('email')
-            address = tracker.get_slot('address')
+            address = tracker.sender_id
             user_update(name, pincode, email, address, city)
             result = "Welcome to urshop, you are successfully registered as urshop customer from {} \nUrshop menu \n. Place order\n. View past order\n. Support".format(city)
             dispatcher.utter_message(result)
-        return [SlotSet("city", city), SlotSet("status","True")]
+        return [SlotSet("address", address), SlotSet("status","True")]
 
 
 class ActionDisplaycategory(Action):
@@ -88,16 +89,15 @@ class ActionDisplaycategory(Action):
             domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
         pincode = tracker.get_slot('pincode')
         city = tracker.get_slot('city')
-        type = client_type(pincode)
+        type = get_category(pincode)
         try:
             result = "Categories available in " + city + " are \n"
             for i in range(len(type)):
-                cat = convert_category_name(type[i])
-                result = result + "{}".format(i + 1) + ". " + cat + "\n"
+                result = result + "{}".format(i + 1) + ". " + type[i] + "\n"
             dispatcher.utter_message(result)
         except:
             dispatcher.utter_message("Shops not available in ", city)
-        return []
+        return [SlotSet("client_type", type)]
 
 
 class ActionDisplayStores(Action):
@@ -111,19 +111,15 @@ class ActionDisplayStores(Action):
         pincode = tracker.get_slot('pincode')
         type = tracker.get_slot('main_category')
         shops, match = get_shops(pincode, type)
-        if(match is False):
-            dispatcher.utter_message("You have entered the shop that is not available!! or badly spelled the name of the shop")
-            return [SlotSet("main_category", None)]
-        else:
-            city = tracker.get_slot('city')
-            try:
-                print(shops[0])
-                result = "Categories available in " + city + " are \n"
-                for i in range(len(shops)):
-                    result = result + "{}".format(i + 1) + ". " + shops[i] + "\n"
-                dispatcher.utter_message(result)
-            except:
-                dispatcher.utter_message("Shops not available in ", city)
+        city = tracker.get_slot('city')
+        try:
+            print(shops[0])
+            result = "Categories available in " + city + " are \n"
+            for i in range(len(shops)):
+                result = result + "{}".format(i + 1) + ". " + shops[i] + "\n"
+            dispatcher.utter_message(result)
+        except:
+            dispatcher.utter_message("Shops not available in ", city)
         return [SlotSet("main_category", match)]
 
 
@@ -202,8 +198,9 @@ class ActionGetQuantity(Action):
             statement = "Here is your CART!!! \n "
             for i in range(len(quantity)):
                 quantity_num[i], price_list[i] = str(quantity_num[i]), str(price_list[i])
-                statement = statement + items[i] + '(' + quantity[i] + ')' + "   " + quantity_num[i] + "unit" + "  ₹" + \
+                statement = statement + items[i] + '(' + quantity[i] + ')' + "   " + quantity_num[i] + "unit" + "  " + \
                             price_list[i] + "\-\n"
+
             dispatcher.utter_message(statement)
         return [SlotSet("quantity_type", quantity), SlotSet("price_list", price_list),
                 SlotSet("total_price", total_price)]

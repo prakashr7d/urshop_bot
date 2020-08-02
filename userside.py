@@ -1,7 +1,7 @@
 import mysql.connector
 from fuzzywuzzy import process
 import urllib.request, json
-import datetime
+
 # import config
 # import datetime
 
@@ -13,7 +13,7 @@ mydb = mysql.connector.connect(
     database="urshop"
 )
 
-cursor = mydb.cursor()
+user_cursor = mydb.cursor()
 
 
 # deafult values
@@ -128,68 +128,27 @@ cursor = mydb.cursor()
 # 		val=(clientid,key,odate,odate,odate,item_list,speacial_note,pmode,couponid,disc_amt)
 # 		user_cursor.execute(sql)
 
-def check_is_shop_available(client_id):
-    sql_query = "select close_hour from client where client_id = \""+client_id +"\""
-    cursor.execute(sql_query)
-    time_client = cursor.fetchone()[0]    
-    time = datetime.datetime.now()
-    time = time.strftime('%X').split(':')
-    time = datetime.timedelta(seconds=int(time[2]),minutes=int(time[1]),hours=int(time[0]))
-    print(time)
-    if(time_client>time):
-        return True
-    elif(time_client<time):
-        return False
-    elif(time_client==time):
-        return False
-
 def user_update(name, pincode, email, address, city):
     val = (name, pincode, city, address, email,)
     sql = "INSERT INTO users(name, pincode, city, address, email_id) VALUES (%s,%s,%s,%s,%s)"
     user_cursor.execute(sql, val)
     mydb.commit()
 
-def fuzzywuz(element, lis):
-    match = process.extract(element, lis, limit=1)
-    ratio = fuzz.ratio(match[0][0],element)
-    if(ratio<70):
-        return False
-    else:
-        return match[0][0]
-    
-def to_list(in_list):
-    out_list=[]
-    for type in in_list:
-        out_list.append(type[0])
-    return out_list 
-
-def check_is_list_none(list_to_check):
-    if(len(list_to_check)==0):
-        return True
-    else:
-        return False
-
-def client_type(pincode):
-    sql="SELECT distinct type FROM client WHERE pincode="+str(pincode)
-    cursor.execute(sql)
-    result=cursor.fetchall()
-    return to_list(result)
 
 def validate_pincode(pincode):
-    sql = "SELECT * FROM client WHERE pincode = %s"
+    sql = "SELECT * FROM clients WHERE pincode = %s"
     val = (pincode,)
     user_cursor.execute(sql, val)
     rows = user_cursor.fetchall()
     # The result of a "cursor.execute" can be iterated over by row
     try:
+        p = rows[0]
         result = True
         pincode = str(pincode)
         pincode_request = "https://api.postalpincode.in/pincode/" + pincode
-        p = rows[0]
     except:
         result = False
     try:
-        import urllib.request, json
         with urllib.request.urlopen(pincode_request) as url:
             data = json.loads(url.read().decode())
         msg = data.pop(0)
@@ -198,66 +157,62 @@ def validate_pincode(pincode):
         city = "wrong city selected"
 
     return result, city
-def client_name_id(type, pincode):
-    sql="SELECT name FROM client WHERE pincode="+str(pincode)+" AND type=\""+str(type)+"\""
-    cursor.execute(sql)
-    result_client_name=to_list(cursor.fetchall())
-    sql="SELECT client_id FROM client WHERE pincode="+str(pincode)+" AND type=\""+str(type)+"\""
-    cursor.execute(sql)
-    result_client_id=to_list(cursor.fetchall())
-    for i in range(len(result_client_id)):
-        if(check_is_shop_available(result_client_id[i])):
-            pass
-        else:
-            result_client_id.pop(i)
-            result_client_name.pop(i)
-    return result_client_name, result_client_id
+
 
 def get_category(pincode):
-    categories = client_type(pincode)
-    categories = list(dict.fromkeys(categories))
+    pincode = str(pincode)
+    sql = "select distinct client_type from clients where pincode = %s"
+    val = (pincode,)
+    user_cursor.execute(sql, val)
+    row = user_cursor.fetchall()
+    categories = []
+    for rows in row:
+        categories.append(rows[0])
+    categories = list(dict.fromkeys(categories)) # To check that line
     return categories
 
-def get_client_id(name):
-    sql="SELECT client_id FROM client WHERE pincode="+str(pincode)+" AND name=\""+str(name)+"\""
-    cursor.execute(sql)
-    result=cursor.fetchone()[0]
-    return result
 
 def get_shops(pincode, type):
-    categories = client_type(pincode)
-    match = fuzzywuz(type, categories)
-    if(match is False):
-        shop_list = ["Sorry to say!!, No shop available right now!!!"]
-    shop_list = client_name_id(match, pincode)
-    return shop_list, match
+    sql_update_query = "select distinct client_type from clients where pincode= %s"
+    data_tuple = (pincode,)
+    user_cursor.execute(sql_update_query, data_tuple)
+    row = user_cursor.fetchall()
+    product = []
+    for rows in row:
+        product.append(rows[0])
+    match = process.extract(type, product, limit=1)
+    type = match[0][0]
 
-def convert_category_name(keyword):
-    if(keyword=="GEN"):
-        return "General store"
-    elif(keyword=="GRO"):
-        return "Grocery store"
-    elif(keyword=="PHA"):
-        return "Pharmacy store"
-    elif(keyword=="STA"):
-        return "Stationary store"
-    else:
-        return "Oops!! 😮 we lost this category"
-def get_item_link(pincode, shop):
-    sql_querry = "select item from client where pincode="+pincode+"name="+shop
-    cursor.execute(sql_querry)
+    pincode = str(pincode)
+
+    sql = "select shop_name from clients where pincode = %s and  client_type = %s"
+    val = (pincode, type,)
+    user_cursor.execute(sql, val)
+    shops = user_cursor.fetchall()
+    shop = []
+    for i in range(len(shops)):
+        shop.append(shops[i][0])
+    return shop, type
 
 
-def get_items(shop, type, pincode):
-    shops, dumy = get_shops(pincode, type)
-    match = fuzzywuz(shop, shops)
-    if(match is False):
-        item_link = ["https://i.ibb.co/gPGsw0b/1.png"]
-    else:
+def get_items(shop, pincode):
+    pincode = str(pincode)
+    sql_update_query = "select shop_name from clients where pincode= %s"
+    data_tuple = (pincode,)
+    user_cursor.execute(sql_update_query, data_tuple)
+    row = user_cursor.fetchall()
+    product = []
+    for rows in row:
+        product.append(rows[0])
+    match = process.extract(shop, product, limit=1)
+    type = match[0][0]
+    sql_update_query = "select shop_item_list from clients where shop_name = %s"
+    data_tuple = (type,)
+    user_cursor.execute(sql_update_query, data_tuple)
+    shop_list = user_cursor.fetchone()
+    shop_list = shop_list[0]
 
-        
-    
-    return item_list, match
+    return shop_list, type
 
 
 def set_items_and_return_quantity(items, shop):
