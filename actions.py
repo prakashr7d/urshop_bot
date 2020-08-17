@@ -3,9 +3,8 @@ from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.events import SlotSet
 from rasa_sdk.forms import FormAction
-from userside import validate_pincode, get_shops, get_category, user_update, get_items, set_items_and_return_quantity,get_quantity
+from userside import validate_pincode, get_shops, convert_category_name, client_type, user_update, get_items, set_items_and_return_quantity_type,get_quantity
 from rasa_sdk.events import AllSlotsReset
-
 # TODO: to make the fuzzy wizzy in items selected and make it right
 class UserForm(FormAction):
 
@@ -41,7 +40,7 @@ class ActionGetName(FormAction):
 
         return [SlotSet("name",name)]
 
-class ActionGetName(FormAction):
+class ActionGetAddress(FormAction):
     
     def name(self) -> Text:
         return "action_set_address"
@@ -73,11 +72,12 @@ class ActionValidationpincode(Action):
             name = tracker.get_slot('name')
             pincode = tracker.get_slot('pincode')
             email = tracker.get_slot('email')
-            address = tracker.sender_id
-            user_update(name, pincode, email, address, city)
+            address = tracker.get_slot('address')
+            phone_number = tracker.sender_id.split(':')[1]
+            user_update(name, pincode, email, address, city, phone_number)
             result = "Welcome to urshop, you are successfully registered as urshop customer from {} \nUrshop menu \n. Place order\n. View past order\n. Support".format(city)
             dispatcher.utter_message(result)
-        return [SlotSet("address", address), SlotSet("status","True")]
+        return [SlotSet("city", city), SlotSet("status","True")]
 
 
 class ActionDisplaycategory(Action):
@@ -89,15 +89,16 @@ class ActionDisplaycategory(Action):
             domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
         pincode = tracker.get_slot('pincode')
         city = tracker.get_slot('city')
-        type = get_category(pincode)
+        type = client_type(pincode)
         try:
             result = "Categories available in " + city + " are \n"
             for i in range(len(type)):
-                result = result + "{}".format(i + 1) + ". " + type[i] + "\n"
+                cat = convert_category_name(type[i])
+                result = result + "{}".format(i + 1) + ". " + cat + "\n"
             dispatcher.utter_message(result)
         except:
             dispatcher.utter_message("Shops not available in ", city)
-        return [SlotSet("client_type", type)]
+        return []
 
 
 class ActionDisplayStores(Action):
@@ -111,15 +112,19 @@ class ActionDisplayStores(Action):
         pincode = tracker.get_slot('pincode')
         type = tracker.get_slot('main_category')
         shops, match = get_shops(pincode, type)
-        city = tracker.get_slot('city')
-        try:
-            print(shops[0])
-            result = "Categories available in " + city + " are \n"
-            for i in range(len(shops)):
-                result = result + "{}".format(i + 1) + ". " + shops[i] + "\n"
-            dispatcher.utter_message(result)
-        except:
-            dispatcher.utter_message("Shops not available in ", city)
+        if match is False:
+            dispatcher.utter_message("You have entered the shop that is not available!! or badly spelled the name of the shop")
+            return [SlotSet("main_category", None)]
+        else:
+            city = tracker.get_slot('city')
+            try:
+                print(shops[0])
+                result = "Categories available in " + city + " are \n"
+                for i in range(len(shops)):
+                    result = result + "{}".format(i + 1) + ". " + shops[i] + "\n"
+                dispatcher.utter_message(result)
+            except:
+                dispatcher.utter_message("Shops not available in ", city)
         return [SlotSet("main_category", match)]
 
 
@@ -133,11 +138,12 @@ class ActionDisplayItems(Action):
 
         shop = tracker.get_slot('shop')
         pincode = tracker.get_slot('pincode')
-        item, match = get_items(shop, pincode)
-        if item is None:
-            dispatcher.utter_message("Items not available in ", match)
-        
-        return [SlotSet("shop", match), SlotSet("disp_items", item)]
+        type = tracker.get_slot('main_category')
+        item, match = get_items(shop, type, pincode)
+        if item is False:
+            return [SlotSet("shop", None), SlotSet("disp_items", item), SlotSet("main_category", None)]    
+        else:
+            return [SlotSet("shop", match), SlotSet("disp_items", item)]
 
 
 class ActionGetItems(Action):
@@ -149,30 +155,30 @@ class ActionGetItems(Action):
             domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
         shop = tracker.get_slot('shop')
         item = tracker.get_slot('item')
-        items, quantity = set_items_and_return_quantity(item, shop)
-        item = ""
-        for i in range(len(items)):
-            if i == 0:
-                item = item + items[i]
-            else:
-                item = item + ',' + items[i]
-        statement = "Select the type of quantities needed: \n"
-        j = 0
-        for single in items:
-            if j == 0:
-                quan = quantity[single]
-                j = 1
-            else:
-                quan = quantity[single]
-                statement = statement + ","
-            for i in range(len(quan)):
-                if i == 0:
-                    statement = statement + str(quan[i])
-                else:
-                    statement = statement + "\\" + str(quan[i])
+        pincode = tracker.get_slot('pincode')
+        wrong_name, available_item, dict_quantity = set_items_and_return_quantity_type(item, shop, pincode)
+        respond = "The wrong items selected(that is wrongly mispelled or not available) are:\n"
 
-        dispatcher.utter_message(statement)
-        return [SlotSet("items_stored", item)]
+        for i in range(len(wrong_name)):
+            respond =  respond + ". " + str(wrong_name[i]) + "\n"
+        respond = respond + "Select the quantity type for the following items in this format(1kg,2lit,6kg):\n"
+
+        for i in range(len(available_item)):
+            repond = respond + ". " + str(available_item[i]) + "\n" 
+        respond = respond + "This are the quantity types available '\' implies the other forms of the available item"
+
+        for i in range(len(dict_quantity)):
+            quantity = dict_quantity[i]
+            identity = 0
+            for i in range(len(quantity)):
+                if identity == 0:
+                    respond = respond + ". " + str(quantity[i])
+                else:
+                    respond = respond + "/" + str(quantity(i))
+            respond = respond + "\n"
+
+        dispatcher.utter_message(respond)
+        return [SlotSet("items_stored", available_item)]
 
 
 class ActionGetQuantity(Action):
@@ -186,7 +192,7 @@ class ActionGetQuantity(Action):
         quantity = tracker.get_slot('quantity_type')
         items = tracker.get_slot('items_stored')
         quantity_num = tracker.get_slot('quantity')
-        total_price, price_list, quantity = get_quantity(quantity, shop, items, quantity_num)
+        total_price, price_list, quantity = get_quantity(quantity, shop, items, quantity_num, pincode)
         try:
             quantity_num = quantity_num.split(',')
             items = items.split(',')
@@ -198,9 +204,8 @@ class ActionGetQuantity(Action):
             statement = "Here is your CART!!! \n "
             for i in range(len(quantity)):
                 quantity_num[i], price_list[i] = str(quantity_num[i]), str(price_list[i])
-                statement = statement + items[i] + '(' + quantity[i] + ')' + "   " + quantity_num[i] + "unit" + "  " + \
+                statement = statement + items[i] + '(' + quantity[i] + ')' + "   " + quantity_num[i] + "unit" + "  ₹" + \
                             price_list[i] + "\-\n"
-
             dispatcher.utter_message(statement)
         return [SlotSet("quantity_type", quantity), SlotSet("price_list", price_list),
                 SlotSet("total_price", total_price)]
@@ -217,7 +222,9 @@ class ActionAffirmYes(Action):
         if total_price is None:
             dispatcher.utter_message("oops!!!! you missed some steps type 'Hi' to start the conversation again")
         else:
-            dispatcher.utter_message("your order is being confirmed.... will get delivery soon")
+            # if():
+                dispatcher.utter_message("your order is being confirmed.... will get delivery soon")
+
         return [SlotSet("menu", None), SlotSet("main_category", None), SlotSet("shop", None), SlotSet("item", None), SlotSet("quantity", None), SlotSet("quantity_stored", None), SlotSet("quantity_type", None), SlotSet("price_list", None), SlotSet("total_price", None), SlotSet("affirm", None)]
 
 
