@@ -266,6 +266,24 @@ def get_item_name(sku):
     name = cursor.fetchone()[0]
     return name
 
+def block_order(client_id , sku , quantity):
+    updated_stock=[]
+    for count,each in enumerate(stock):
+        update=list(each)
+        update[0]=update[0]-quantity[count]
+        update[1]=update[1]+quantity[count]
+        updated_stock.append(tuple(update))
+
+    for count,sku in enumerate(get_sku(items)):
+        sql="UPDATE "+str(clientid)+" SET in_stock=%s ,sold_stock=%s WHERE sku=%s"
+        sql_list=list(updated_stock[count])
+        sql_list.append(sku)
+        val=tuple(sql_list)
+        cursor.execute(sql , val)
+        mydb.commit() 
+
+
+
 def get_items(shop, type, pincode):
     shops, dumy = get_item_link(pincode, type)
     match = fuzzywuz(shop, shops)
@@ -288,7 +306,53 @@ def get_items_type(sku, client_id):
     cursor.execute(sql_query)
     type = cursor.fetchone()[0]
     return type
+# to create order when ever user initiates the cart session i.e has entered the items
+def order_create(client_id ,user_id, sku , quantity):
+    order_id=create_order_id(client_id , user_id)
+    import datetime
+    now = datetime.datetime.now()
+    ordertime=now.strftime("%H:%M:%S")
+    sql="INSERT INTO order_history(order_id , user_id ,order_time) VALUES (%s , %s , %s)"
+    val=(order_id , user_id , ordertime)
+    cursor.execute(sql, val)
+    mydb.commit()
+    order_item(order_id ,  quantity , sku)
 
+# to update the agent id when an agent is assigned    
+def order_agent(order_id , agent_id):
+    sql="UPDATE order_history SET agent_id=\"%s\" WHERE order_id=\"%s\"" % (str(agent_id) , str(order_id))
+    print(sql)
+    cursor.execute(sql)
+    mydb.commit()    
+    
+#to update delivery time when assigned , 
+# DELTIME : to update delivery time
+def order_del_time(order_id , del_time):
+        sql="UPDATE order_history SET delivery_time=\"%s\" WHERE order_id=\"%s\"" % (str(trans_id_del_time) , str(order_id))
+        print(sql)
+        cursor.execute(sql)
+        mydb.commit()        
+ 
+#automatically called inside order_create
+def order_item(order_id , quantity  ,sku):
+    sql="INSERT INTO order_item(order_id , sku , quantity ) VALUES(%s , %s , %s)"
+            
+    for num,item_sku in enumerate(sku):
+        val=(order_id , item_sku , quantity[num] )
+        cursor.execute(sql , val)
+        mydb.commit()
+    
+# used to create order id    
+def create_order_id(client_id , user_id):
+    sql="SELECT order_id FROM dump_order WHERE user_id=\""+str(user_id)+"\" ORDER BY order_id DESC"
+    cursor.execute(sql)
+    result=cursor.fetchone()
+    if(result == None):
+        orderid=client_id+user_id[1:]+"00001"
+    else:
+        order_no=int(result[0][14:])+1
+        orderid=client_id+user_id[1:]+str(order_no).zfill(5)
+    return orderid     
 def set_items_and_return_quantity_type(items, shop, pincode):
     try:
         items = items.split(',')
@@ -300,14 +364,8 @@ def set_items_and_return_quantity_type(items, shop, pincode):
     wrong_items = []
     wrong_items_name = []
     available_item = []
-    for i in range(len(items)):
-        skus.append(get_sku(items[i]))
-    for i in range(len(skus)):
-        try:
-            quantity_type.append(get_items_type(skus[i], client_id))
-            available_item.append(get_item_name(skus[i]))
-        except:
-            wrong_items.append(skus[i])
+    for
+    
     for i in range(len(wrong_items)):
         wrong_items_name.append(get_item_name(wrong_items[i]))
     d = {}
@@ -323,42 +381,30 @@ def set_items_and_return_quantity_type(items, shop, pincode):
             d[available_item[i]] = l
     return wrong_items_name, available_item, d
 
-def block_order(client_id , items , quantity):
-    stock=[]
-    for s in get_sku(items):
-        sql="SELECT in_stock,sold_stock FROM  "+str(clientid)+" WHERE sku="+str(s)
-        cursor.execute(sql)
-        result=cursor.fetchone()
-        stock.append(result)
+def get_user_id(phone_number):
+    sql = "select agent_id from agent where phone_number = {}".format(phone_number)
+    cursor.execute(sql)
+    user_id = cursor.fetchone()[0]
+    return user_id
 
-    updated_stock=[]
-    for count,each in enumerate(stock):
-        update=list(each)
-        update[0]=update[0]-quantity[count]
-        update[1]=update[1]+quantity[count]
-        updated_stock.append(tuple(update))
 
-    for count,sku in enumerate(get_sku(items)):
-        sql="UPDATE "+str(clientid)+" SET in_stock=%s ,sold_stock=%s WHERE sku=%s"
-        sql_list=list(updated_stock[count])
-        sql_list.append(sku)
-        val=tuple(sql_list)
-        cursor.execute(sql , val)
-        mydb.commit()   
            
-def get_quantity(quantity, shop, items, quantity_in_number, pincode):
+def get_quantity(quantity, shop, items, quantity_in_number, pincode, phone_number):
     try:
         items = items.split(',')
         quantity = quantity.split(',')
         number = quantity_in_number.split(',')
+
     except:
         items = items
         quantity = quantity
         number = quantity_in_number
+
     try:
         
         if len(items) != len(quantity) or len(items) != len(number) or len(quantity) != len(number)  :
             return False, False, False
+
         client_id = get_client_id(shop, pincode)
         sql_update_query = "select type from {}".format(client_id)
         user_cursor.execute(sql_update_query)
@@ -375,20 +421,26 @@ def get_quantity(quantity, shop, items, quantity_in_number, pincode):
         if(check_is_shop_available(client_id)):
             raise TypeError("shops closed")
         price_list = []
+
+        skus = []
+
         for i in range(len(quan)):
             sku = get_sku(items[i])
-            block_order(client_id, items[i], quan[i])
+            skus.appent(sku)
             sql_update_query = "select amount from {} where sku = %s and type = %s".format(client_id)
-            val = (sku, quan[i])
-        
+            val = (sql_update_query, sku, quan[i])
             user_cursor.execute(sql_update_query, val)
             price = user_cursor.fetchone()
             price_list.append(price[0])
             sume = 0
-        #block_order()
+
         for i in range(len(price_list)):
             number[i] = int(number[i])
             sume = sume + price_list[i] * number[i]
+
+        user_id = get_user_id(phone_number)
+
+        order_create(client_id, user_id, )
 
         return sume, price_list, quan
     except:

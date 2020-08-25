@@ -32,24 +32,37 @@ entities:
 - shop
 - total_price
 slots:
+  phone_number:
+    type: unfeaturized
+
   address:
     type: text
+
   affirm:
     type: unfeaturized
+
   city:
     type: unfeaturized
+
   client_type:
     type: unfeaturized
+    
   disp_items:
     type: text
+
   email:
     type: unfeaturized
+
   item:
     type: unfeaturized
+
   items_stored:
     type: unfeaturized
+
   main_category:
     type: unfeaturized
+
+
   menu:
     type: categorical
     values:
@@ -57,6 +70,7 @@ slots:
     - view_past_order
     - support
     - __other__
+    
   name:
     type: unfeaturized
   pincode:
@@ -122,5 +136,6 @@ actions:
 - utter_greet
 - utter_show_price
 - utter_submit
+- action_payment_part
 forms:
 - user_form

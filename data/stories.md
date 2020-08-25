@@ -144,5 +144,6 @@
 * ask_affirm{"affirm":"yes"}
     - action_affirm_yes
     - slot{"menu":null}
+    - action_payment_part
 
   

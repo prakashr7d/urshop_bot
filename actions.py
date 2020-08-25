@@ -1,3 +1,5 @@
+
+
 from typing import Any, Text, Dict, List
 from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
@@ -5,6 +7,8 @@ from rasa_sdk.events import SlotSet
 from rasa_sdk.forms import FormAction
 from userside import validate_pincode, get_shops, convert_category_name, client_type, user_update, get_items, set_items_and_return_quantity_type,get_quantity
 from rasa_sdk.events import AllSlotsReset
+from paymentrequest import create_payment_request
+from paymentrequest import create_transanction
 # TODO: to make the fuzzy wizzy in items selected and make it right
 class UserForm(FormAction):
 
@@ -77,7 +81,7 @@ class ActionValidationpincode(Action):
             user_update(name, pincode, email, address, city, phone_number)
             result = "Welcome to urshop, you are successfully registered as urshop customer from {} \nUrshop menu \n. Place order\n. View past order\n. Support".format(city)
             dispatcher.utter_message(result)
-        return [SlotSet("city", city), SlotSet("status","True")]
+        return [SlotSet("city", city), SlotSet("status","True"), SlotSet("phone_number", phone_number)]
 
 
 class ActionDisplaycategory(Action):
@@ -192,6 +196,7 @@ class ActionGetQuantity(Action):
         quantity = tracker.get_slot('quantity_type')
         items = tracker.get_slot('items_stored')
         quantity_num = tracker.get_slot('quantity')
+        phone_number = tracker.get_slot("phone_number")
         total_price, price_list, quantity = get_quantity(quantity, shop, items, quantity_num, pincode)
         try:
             quantity_num = quantity_num.split(',')
@@ -199,7 +204,7 @@ class ActionGetQuantity(Action):
         except:
             pass
         if total_price == price_list == quantity == False:
-            dispatcher.utter_message('your entries are wrong')
+            dispatcher.utter_message('We experienced an error in our end!!!, we will try to rectify it. /n For assistance contact: url')
         else:
             statement = "Here is your CART!!! \n "
             for i in range(len(quantity)):
@@ -209,7 +214,8 @@ class ActionGetQuantity(Action):
             dispatcher.utter_message(statement)
         return [SlotSet("quantity_type", quantity), SlotSet("price_list", price_list),
                 SlotSet("total_price", total_price)]
-
+get_user_id(phone_number):
+    sql_update_querry = "select user_id"
 
 class ActionAffirmYes(Action):
     def name(self) -> Text:
@@ -218,12 +224,16 @@ class ActionAffirmYes(Action):
     def run(self, dispatcher: CollectingDispatcher,
             tracker: Tracker,
             domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        phone_number = tracker.get_slot("phone_number")
         total_price = tracker.get_slot("total_price")
+        name = tracker.get_slot()
         if total_price is None:
             dispatcher.utter_message("oops!!!! you missed some steps type 'Hi' to start the conversation again")
         else:
-            # if():
-                dispatcher.utter_message("your order is being confirmed.... will get delivery soon")
+            long_url = create_transanction(phone_number, total_price, name)
+
+             
+                
 
         return [SlotSet("menu", None), SlotSet("main_category", None), SlotSet("shop", None), SlotSet("item", None), SlotSet("quantity", None), SlotSet("quantity_stored", None), SlotSet("quantity_type", None), SlotSet("price_list", None), SlotSet("total_price", None), SlotSet("affirm", None)]
 
